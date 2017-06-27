@@ -1,0 +1,141 @@
+Deploying to S3 upon Git Push
+October 23, 2013 at 4:00 PM PDT
+
+With a simple post-receive hook and using s3cmd, you can have Git deploy to S3 after a pushing to your remote repository. If you're simply interested in the hook code, I have provided it at the bottom of this post.
+
+Setting up s3cmd
+
+To get started, you'll want to configure s3cmd on the user account that is holding the bare repository with your either security credentials of your AWS account or security credentials of an IAM user. I highly recommend creating a dedicated IAM user for s3cmd with an user policy that grants it full control to S3 and use its security credentials rather than giving it unlimited permissions by using your AWS account security credentials.
+
+$ s3cmd --configure
+You will be prompted for the access key and secret key:
+
+Access key and Secret key are your identifiers for Amazon S3
+Access Key: ACCESSKEY
+Secret Key: SECRETKEY
+Next, you'll be prompted for a GPG encryption key and the path to GPG that will be used when transferring files to S3. You can leave these blank to not use GPG when transferring.
+
+Encryption password is used to protect your files from reading
+by unauthorized persons while in transfer to S3
+Encryption password:
+Path to GPG program [/usr/bin/gpg]:
+Then, you'll be prompted if you want to use HTTPS when transferring files:
+
+When using secure HTTPS protocol all communication with Amazon S3
+servers is protected from 3rd party eavesdropping. This method is
+
+slower than plain HTTP and can't be used if you're behind a proxy
+Use HTTPS protocol [No]:
+If you said no to HTTPS, you will be able to provide a proxy. Leave the proxy name blank if you do not wish to provide a proxy.
+
+On some networks all internet access must go through a HTTP proxy.
+Try setting it here if you can't conect to S3 directly
+HTTP Proxy server name:
+HTTP Proxy server port [0]:
+You will then have a chance to review what you have provided and to test access with the supplied credentials.
+
+New settings:
+#!/bin/sh
+  Access Key: ACCESSKEY
+  Secret Key: SECRETKEY
+  Encryption password:
+  Path to GPG program: /usr/bin/gpg
+#!/bin/sh
+  Use HTTPS protocol: True
+  HTTP Proxy server name:
+  HTTP Proxy server port: 0
+
+Test access with supplied credentials? [Y/n]
+If all goes well, you will be provided with the following:
+
+Please wait, attempting to list all buckets...
+Success. Your access key and secret key worked fine :-)
+Encryption will also be tested. Finally, you will be prompted whether to save the configuration.
+
+Save settings? [y/N] Y
+Configuration saved to '/home/git/.s3cfg'
+Setting up the hook
+
+Navigate into the working directory of your bare Git repository. Then, open up hooks/post-receive in your favorite text editor. Let's start with the following:
+
+#!/bin/sh
+
+S3_BUCKET=yourbucket
+TEMP_DEPLOY_DIR=/tmp/$S3_BUCKET/
+These are variables we will be working within the hook. You'll want to set S3_BUCKET to the actual name of your S3 bucket. Currently, we'll be writing to a directory named after the bucket name in /tmp/, however you can change this if necessary.
+
+We will want to ensure the temporary directory is clean and any Git environment variables aren't going to conflict, so we'll add the following to the hook:
+
+# Ensure that the temporary directory is clean and unset potential conflicting
+# environment variables
+rm -rf $TEMP_DEPLOY_DIR
+unset GIT_DIR
+unset GIT_WORK_TREE
+Now we will want to set up populating the working tree. If you have no submodules in your repository, we will use the following:
+
+# Create a working tree with a bare repo that does not have submodules
+mkdir -p $TEMP_DEPLOY_DIR
+export GIT_DIR=$(pwd)
+export GIT_WORK_TREE=$TEMP_DEPLOY_DIR
+git checkout -f
+cd $TEMP_DEPLOY_DIR
+If you do have submodules, dealing with them using the above method is problematic. I found the best solution is to make an entire clone of the repository in order to get the submodules to initialize and update properly:
+
+# Create a working tree with a bare repo that has submodules
+git clone $(pwd) $TEMP_DEPLOY_DIR
+cd $TEMP_DEPLOY_DIR
+git submodule update --init --recursive
+Then, we can now sync the repository with S3:
+
+# Sync with S3
+s3cmd sync --delete-removed --acl-public --exclude '.git/*' ./ s3://$S3_BUCKET/
+If anything should be preprocessed before syncing with S3, say a Jekyll site, we can build the site and sync only the _site directory:
+
+# Build and sync
+jekyll build
+s3cmd sync --delete-removed --acl-public --exclude '.git/*' _site/ s3://$S3_BUCKET/
+You will want to ensure anything ran from the hook is set up on the remote server, otherwise it will fail.
+
+Finally, we clean up the temporary directory we were using to sync with S3.
+
+# Clean up
+cd ..
+rm -rf $TEMP_DEPLOY_DIR
+That's all there is to it. Git will now deploy to your S3 bucket each time you push to your remote repository.
+
+Example post-receive hook
+
+Here is the complete post-receive hook code.
+
+#!/bin/sh
+# post-receive hook that syncs with S3 upon a push
+
+S3_BUCKET=yourbucket
+TEMP_DEPLOY_DIR=/tmp/$S3_BUCKET/
+
+# Ensure that the temporary directory is clean and unset potential conflicting
+# environment variables
+rm -rf $TEMP_DEPLOY_DIR
+unset GIT_DIR
+unset GIT_WORK_TREE
+
+# Create a working tree with a bare repo that does not have submodules
+mkdir -p $TEMP_DEPLOY_DIR
+export GIT_DIR=$(pwd)
+export GIT_WORK_TREE=$TEMP_DEPLOY_DIR
+git checkout -f
+cd $TEMP_DEPLOY_DIR
+
+# If the repo has submodules, comment out ore remove the above and uncomment the below:
+#
+# git clone $(pwd) $TEMP_DEPLOY_DIR
+# cd $TEMP_DEPLOY_DIR
+# git submodule update --init --recursive
+
+# Sync with S3
+s3cmd sync --delete-removed --acl-public --exclude '.git/*' ./ s3://$S3_BUCKET/
+
+# If you use Jekyll, comment out or remove the above line and uncomment the below:
+#
+# jekyll build
+# s3cmd sync --delete-removed --acl-public --exclude '.git/*' _site/ s3://$S3_BUCKET/
