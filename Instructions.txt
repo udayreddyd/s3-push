@@ -139,3 +139,80 @@ s3cmd sync --delete-removed --acl-public --exclude '.git/*' ./ s3://$S3_BUCKET/
 #
 # jekyll build
 # s3cmd sync --delete-removed --acl-public --exclude '.git/*' _site/ s3://$S3_BUCKET/
+
+-------------------------------------------------------------------------------------------------------------
+
+
+
+S3cmd System Requirements: s3cmd required Python 2.4 or greater version to run. We also need to install GPG.
+
+Step 1: Install Python
+
+Download and install python 2.4 or higher version from python official site and install it.
+
+https://www.python.org/downloads/
+
+After installing python, append the Python in Path environment variable. Open command prompt and verify python version.
+
+C:> python --version
+
+Python 2.7.6
+Step 2: Install GPG for Windows
+
+Gpg4win (GNU Privacy Guard for Windows) is Free Software to install. Use following link to download and install it.
+
+http://www.gpg4win.org/download.html
+
+Step 3: Download S3cmd and Configure
+
+Download latest s3cmd source code from s3cmd official page and extract to c:s3cmd location.
+
+http://s3tools.org/download
+
+After extracting source code, use following command to setup s3 environment. It will ask for your s3 accounts AccessKey and SecretKey, path to GPG command like below.
+
+C:s3cmd> python s3cmd --configure
+
+Enter new values or accept defaults in brackets with Enter.
+Refer to user manual for detailed description of all options.
+
+Access key and Secret key are your identifiers for Amazon S3
+Access Key: XXXXXXXXXXXXXXXXXXXX
+Secret Key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+Encryption password is used to protect your files from reading
+by unauthorized persons while in transfer to S3
+Encryption password: XXXXXXXXX
+Path to GPG program: C:Program Files (x86)GNUGnuPGgpg2.exe
+
+When using secure HTTPS protocol all communication with Amazon S3
+servers is protected from 3rd party eavesdropping. This method is
+slower than plain HTTP and can't be used if you're behind a proxy
+Use HTTPS protocol [No]: Yes
+
+New settings:
+  Access Key: XXXXXXXXXXXXXXXXXXXX
+  Secret Key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  Encryption password: XXXXXXXXX
+  Path to GPG program: C:Program Files (x86)GNUGnuPGgpg2.exe
+  Use HTTPS protocol: True
+  HTTP Proxy server name:
+  HTTP Proxy server port: 0
+
+Test access with supplied credentials? [Y/n] Y
+Please wait, attempting to list all buckets...
+Success. Your access key and secret key worked fine :-)
+
+Now verifying that encryption works...
+Success. Encryption and decryption worked fine :-)
+
+Save settings? [y/N] Y
+Configuration saved to 'C:UsersAdministratorApplication Datas3cmd.ini'
+Step 4: Verify S3cmd
+
+To verify s3cmd configuration use following command. It will list the buckets create in your configured s3 account.
+
+C:> python c:s3cmds3cmd ls
+
+2014-02-03 06:37  s3://tecadmin
+2014-03-29 07:56  s3://tecadminbackups
